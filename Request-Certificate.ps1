@@ -57,6 +57,10 @@ The syntax is {tag}={value}.
 Valid tags are: email, upn, dns, guid, url, ipaddress, oid
 e.g. dns=test.jofe.ch,email=jfeller@jofe.ch
 
+.PARAMETER IP
+Specifies a comma separated list IP addresses (IPv4) for the certificate. Will be added as SAN IP object.
+e.g. 127.0.0.1,172.0.8.1
+
 .PARAMETER TemplateName
 Specifies the name for the temple of the CA to issue the certificate(s).
 The default value is "WebServer".
@@ -151,12 +155,12 @@ Gets common names from the file certs.txt and request for each a certificate.
 Each certificate will then be saved withe the private key in a .pfx file.
 
 .EXAMPLE
-C:\PS> .\Request-Certificate.ps1 -CN "webserver.test.ch" -SAN "DNS=webserver.test.ch,DNS=srvweb.test.local"
+C:\PS> .\Request-Certificate.ps1 -CN "webserver.test.ch" -SAN "DNS=webserver.test.ch,DNS=srvweb.test.local" -IP "192.168.0.1,172.0.8.1"
 
 Description
 -----------
-This command requests a certificate with a CN of webserver.test.ch and subject alternative names (SANs)
-The SANs of the certificate are the DNS names webserver.test.ch and srvweb.test.local.
+This command requests a certificate with a CN of webserver.test.ch and subject alternative names (SANs).
+The SANs of the certificate are the DNS names webserver.test.ch and srvweb.test.local and the IP addresses 192.168.0.1 and 172.0.8.1
 
 .EXAMPLE
 C:\PS> Import-Csv .\sancertificates.csv -UseCulture | .\Request-Certificate.ps1 -verbose -Export -CAName "testsrv.test.ch\Test CA"
@@ -168,10 +172,10 @@ The first command creates custom objects from a comma-separated value (CSV) file
 Each certificate will then be saved with the private key in a .pfx file.
 
 The CSV file look something like this:
-CN;SAN
-test1.test.ch;DNS=test1san1.test.ch,DNS=test1san2.test.ch
-test2.test.ch;DNS=test2san1.test.ch,DNS=test2san2.test.ch
-test3.test.ch;DNS=test3san1.test.ch,DNS=test3san2.test.ch
+CN;SAN;IP
+test1.test.ch;DNS=test1san1.test.ch,DNS=test1san2.test.ch;192.168.0.1,172.0.8.1
+test2.test.ch;DNS=test2san1.test.ch,DNS=test2san2.test.ch;192.168.0.2,172.0.8.2
+test3.test.ch;DNS=test3san1.test.ch,DNS=test3san2.test.ch;192.168.0.3,172.0.8.3
 
 .NOTES
 
@@ -210,6 +214,8 @@ Param(
     [string]$CN,
     [Parameter(Mandatory = $False, ValueFromPipelineByPropertyName = $True)]
     [string[]]$SAN,
+    [Parameter(Mandatory = $False, ValueFromPipelineByPropertyName = $True)]
+    [string[]]$IP,
     [Parameter(Mandatory = $False, ValueFromPipelineByPropertyName = $True)]
     [String]$TemplateName = "WebServer",
     [Parameter(Mandatory = $False, ValueFromPipelineByPropertyName = $True)]
@@ -302,6 +308,13 @@ CertificateTemplate = "$TemplateName"
         $SAN = @("DNS=$CN") + $SAN #Add CN as first SAN entry
     }
 
+    if ($PSBoundParameters.ContainsKey('IP')) {
+        #IP must be a string
+        if (($IP).count -eq 1) {
+            $IP = @($IP -split ',')
+        }
+    }
+
     # Remove Potential duplicates (if CN was already provided in SAN list)
     $SAN = $SAN | Select-Object -Unique
 
@@ -323,6 +336,30 @@ CertificateTemplate = "$TemplateName"
 2.5.29.17 = "{text}"
 
 '@
+
+    foreach ($p in $ip) {
+            $file += "_continue_ = `"IPAddress=$p&`"`n"
+        }
+    }
+    else {
+        Write-Host "Requesting certificate with ip $p" -ForegroundColor Green
+        Write-Debug "Parameter values: ip = $ip, TemplateName = $TemplateName, CAName = $CAName"
+    }
+
+    Write-Debug "Inf-File: $file"
+
+    if ($IP.Count -gt 0) {
+
+        Write-Host "Requesting SAN certificate with subject $CN and IP: $($IP -join ',')" -ForegroundColor Green
+        Write-Debug "Parameter values: CN = $CN, TemplateName = $TemplateName, CAName = $CAName, SAN = $($SAN -join ' '), IP = $IP"
+
+        Write-Verbose "A value for the SAN is specified. Requesting a SAN certificate."
+        Write-Debug "Add Extension for SAN to the inf file..."
+        $file +=
+@'
+
+'@
+
 
         foreach ($an in $SAN) {
             $file += "_continue_ = `"$($an)&`"`n"
