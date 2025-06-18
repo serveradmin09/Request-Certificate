@@ -319,13 +319,13 @@ CertificateTemplate = "$TemplateName"
     $SAN = $SAN | Select-Object -Unique
 
 
-    if ($SAN.Count -gt 0) {
+    if ($SAN.Count -gt 0 or $IP.Count -gt 0) {
 
-        Write-Host "Requesting SAN certificate with subject $CN and SAN: $($SAN -join ',')" -ForegroundColor Green
+        Write-Host "Requesting SAN certificate with subject $CN and SAN: $($SAN -join ',') and IP: $($IP -join ',')" -ForegroundColor Green
         Write-Debug "Parameter values: CN = $CN, TemplateName = $TemplateName, CAName = $CAName, SAN = $($SAN -join ' ')"
 
-        Write-Verbose "A value for the SAN is specified. Requesting a SAN certificate."
-        Write-Debug "Add Extension for SAN to the inf file..."
+        Write-Verbose "A value for the SAN or IP is specified. Requesting a SAN certificate."
+	Write-Debug "Add Extension for SAN and IP to the inf file..."
         $file +=
 @'
 
@@ -336,7 +336,9 @@ CertificateTemplate = "$TemplateName"
 2.5.29.17 = "{text}"
 
 '@
-
+    foreach ($an in $SAN) {
+	    $file += "_continue_ = `"$($an)&`"`n"
+	}
     foreach ($p in $ip) {
             $file += "_continue_ = `"IPAddress=$p&`"`n"
         }
